@@ -3,103 +3,127 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "manual-trigger-1",
+      "id": "b7b15009-9518-45b4-849a-4ddce69197b3",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [220, 300]
+      "position": [
+        0,
+        16
+      ]
     },
     {
       "parameters": {
-        "url": "http://localhost:5000/api/people/untagged",
-        "method": "GET",
+        "url": "http://127.0.0.1:5000/api/people/untagged",
         "options": {}
       },
-      "id": "get-untagged-1",
+      "id": "07572410-020e-4562-8f28-23d46389d6b2",
       "name": "Get Untagged People",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 300]
+      "position": [
+        240,
+        16
+      ]
     },
     {
       "parameters": {
-        "options": {}
-      },
-      "id": "split-out-1",
-      "name": "Split Into Items",
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
-      "position": [660, 300],
-      "notesInFlow": true,
-      "notes": "Fans the JSON array response out into one n8n item per person"
-    },
-    {
-      "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-4o-mini",
-          "mode": "list"
-        },
-        "messages": {
-          "values": [
-            {
-              "role": "system",
-              "content": "You classify a person's skill category from a comma-separated skills list. Reply with EXACTLY ONE of these labels and nothing else: automation-heavy, web dev, data, backend, qa-automation. automation-heavy = mostly n8n/Zapier/LangChain/web scraping. web dev = mostly React/JavaScript. data = mostly Pandas/SQL/MongoDB/MySQL. backend = mostly FastAPI/REST APIs/Docker. qa-automation = mostly Selenium/testing tools. If it's a genuine mix, pick the category with the most matching skills."
-            },
-            {
-              "role": "user",
-              "content": "={{ $json.skills }}"
-            }
-          ]
-        },
-        "options": {
-          "temperature": 0
-        }
-      },
-      "id": "llm-classify-1",
-      "name": "Classify Skill Category (LLM)",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.5,
-      "position": [880, 300],
-      "credentials": {
-        "openAiApi": {
-          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
-          "name": "OpenAI account"
-        }
-      },
-      "notes": "Swap for the Anthropic/Claude node if you'd rather use Claude - same prompt works, just point it at claude-haiku or similar for cost."
-    },
-    {
-      "parameters": {
-        "url": "=http://localhost:5000/api/people/{{ $('Split Into Items').item.json.person_id }}/tag",
         "method": "POST",
+        "url": "=http://127.0.0.1:5000/api/people/{{ $('Get Untagged People').item.json.person_id }}/tag",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"skill_category\": $json.message.content.trim() } }}",
+        "jsonBody": "={ \"skill_category\": \"{{ $json.choices[0].message.content.trim() }}\" }",
         "options": {}
       },
-      "id": "write-back-1",
+      "id": "71b95ec2-fba3-4ba9-9e3d-6a5a040d9628",
       "name": "Write Tag Back To DB",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1100, 300]
+      "position": [
+        800,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"temperature\": 0,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You classify a person's skill category from a comma-separated skills list. Reply with EXACTLY ONE label and nothing else: automation-heavy, web dev, data, backend, qa-automation.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.skills }}\"\n    }\n  ]\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 2000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        560,
+        16
+      ],
+      "id": "226e830d-1b2e-451c-b004-d956a8c84558",
+      "name": "Classify Skill Category (LLM)",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IckSZFomppd1wObF",
+          "name": "Header Auth account"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
     "Manual Trigger": {
-      "main": [[{ "node": "Get Untagged People", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Untagged People",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Untagged People": {
-      "main": [[{ "node": "Split Into Items", "type": "main", "index": 0 }]]
-    },
-    "Split Into Items": {
-      "main": [[{ "node": "Classify Skill Category (LLM)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classify Skill Category (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classify Skill Category (LLM)": {
-      "main": [[{ "node": "Write Tag Back To DB", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Write Tag Back To DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "75e397db-8631-4acc-aa6d-5cbd9121782c",
   "meta": {
-    "instanceId": "REPLACE_AFTER_IMPORT"
-  }
+    "instanceId": "81000d695eb3604aa8c5c604703594571c0190628e7992674c804faa1ed9245a"
+  },
+  "nodeGroups": [],
+  "id": "EMBFeZfl0oYNrnQv",
+  "tags": []
 }
