@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+merge/people.db
+audio-app/uploads/*
+!audio-app/uploads/.gitkeep
+.DS_Store
+*.egg-info/
+venv/
+.env

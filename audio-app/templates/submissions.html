@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Submissions</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 16px; color: #222; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background: #f4f4f4; }
+  audio { width: 200px; height: 32px; }
+  a.nav { display: inline-block; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+  <a class="nav" href="/">&larr; Back to submission form</a>
+  <h1>All submissions ({{ rows|length }})</h1>
+  <table>
+    <tr>
+      <th>Name</th><th>Phone</th><th>Audio</th><th>Duration</th>
+      <th>Sample rate</th><th>Bitrate</th><th>Loudness</th><th>Noise est.</th><th>Submitted</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.submitted_name }}</td>
+      <td>{{ r.submitted_phone }}</td>
+      <td><audio controls src="/uploads/{{ r.filename }}"></audio></td>
+      <td>{{ r.duration_sec }} s</td>
+      <td>{{ '%.1f'|format(r.sample_rate_hz / 1000) }} kHz</td>
+      <td>{{ r.bitrate_kbps or 'n/a' }} kbps</td>
+      <td>{{ r.loudness_db or 'n/a' }} dB</td>
+      <td>{{ r.noise_estimate }}</td>
+      <td>{{ r.submitted_at }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9">No submissions yet.</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

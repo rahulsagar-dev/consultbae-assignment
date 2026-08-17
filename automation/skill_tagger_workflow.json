@@ -1,0 +1,105 @@
+{
+  "name": "ConsultBae - Skill Category Auto-Tagger",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5000/api/people/untagged",
+        "method": "GET",
+        "options": {}
+      },
+      "id": "get-untagged-1",
+      "name": "Get Untagged People",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "split-out-1",
+      "name": "Split Into Items",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [660, 300],
+      "notesInFlow": true,
+      "notes": "Fans the JSON array response out into one n8n item per person"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You classify a person's skill category from a comma-separated skills list. Reply with EXACTLY ONE of these labels and nothing else: automation-heavy, web dev, data, backend, qa-automation. automation-heavy = mostly n8n/Zapier/LangChain/web scraping. web dev = mostly React/JavaScript. data = mostly Pandas/SQL/MongoDB/MySQL. backend = mostly FastAPI/REST APIs/Docker. qa-automation = mostly Selenium/testing tools. If it's a genuine mix, pick the category with the most matching skills."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.skills }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "llm-classify-1",
+      "name": "Classify Skill Category (LLM)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.5,
+      "position": [880, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      },
+      "notes": "Swap for the Anthropic/Claude node if you'd rather use Claude - same prompt works, just point it at claude-haiku or similar for cost."
+    },
+    {
+      "parameters": {
+        "url": "=http://localhost:5000/api/people/{{ $('Split Into Items').item.json.person_id }}/tag",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"skill_category\": $json.message.content.trim() } }}",
+        "options": {}
+      },
+      "id": "write-back-1",
+      "name": "Write Tag Back To DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Get Untagged People", "type": "main", "index": 0 }]]
+    },
+    "Get Untagged People": {
+      "main": [[{ "node": "Split Into Items", "type": "main", "index": 0 }]]
+    },
+    "Split Into Items": {
+      "main": [[{ "node": "Classify Skill Category (LLM)", "type": "main", "index": 0 }]]
+    },
+    "Classify Skill Category (LLM)": {
+      "main": [[{ "node": "Write Tag Back To DB", "type": "main", "index": 0 }]]
+    }
+  },
+  "meta": {
+    "instanceId": "REPLACE_AFTER_IMPORT"
+  }
+}
