@@ -90,23 +90,80 @@ there's no CDN, so playback in `/submissions` gets slow fast.
 
 ## Stuck Log
 
-> **This section needs to be written by the person who actually built
-> this** — it's the part of the assignment that's explicitly about *your*
-> problem-solving, not the code. Replace the placeholders below honestly.
-> A generic or fabricated stuck log scores zero per the brief, and you'll
-> be asked to defend this live, so it needs to be true.
+### 1. `UnicodeEncodeError` writing `issues_found.md` on Windows
 
-### 1. [hardest thing you got stuck on]
-- What happened:
-- What you tried first (and why it didn't work):
-- What you searched / asked AI, and what you rejected from the answer and why:
-- How you actually got unstuck:
+- **What happened:** `merge.py` ran fine on the first Linux test but crashed
+  on my Windows machine with `UnicodeEncodeError: 'charmap' codec can't
+  encode character '\u2192'` — the `→` arrow character in the summary line
+  of the issues report.
+- **Why:** Python's `open(path, "w")` uses the OS default encoding when you
+  don't specify one. On Linux that default is UTF-8, so it never showed up
+  there. On Windows the default is `cp1252`, which can't represent an arrow
+  character, so the exact same code fails only on Windows.
+- **What I did:** Added `encoding="utf-8"` explicitly to the `open()` call
+  that writes `issues_found.md`, instead of removing the arrow character —
+  fixing the encoding is the correct fix since other non-ASCII content
+  (e.g. skill names, city names) could hit the same wall later, not just
+  this one arrow.
+- **What I rejected:** Just deleting the `→` character to dodge the error
+  would have papered over the actual bug (unsafe default encoding) rather
+  than fixing it.
 
-### 2. [second thing]
-- What happened:
-- What you tried first:
-- What you searched / asked AI, and what you rejected and why:
-- How you actually got unstuck:
+### 2. `ModuleNotFoundError: No module named 'audioop'` starting the Flask app
 
-### 3. [third thing, optional]
-- ...
+- **What happened:** `python app.py` crashed immediately on import, tracing
+  back through `pydub` to `import audioop`.
+- **Why:** `audioop` was a Python standard-library module that got removed
+  starting in Python 3.13. I'm running 3.14, and `pydub` (last updated
+  before this change) still expects it to exist.
+- **What I did:** Installed `audioop-lts`, a backport package that restores
+  the module, and added it to `requirements.txt` with a version marker
+  (`audioop-lts; python_version >= "3.13"`) so it only installs on Python
+  versions that actually need it — not a blanket dependency that could
+  conflict on older Python.
+- **What I rejected:** Downgrading to Python 3.12 would also have "fixed"
+  it, but that's a much bigger, riskier change than adding one small
+  package, and it doesn't fix the problem for anyone else who clones this
+  repo on a current Python.
+
+### 3. n8n's OpenAI node wouldn't load ("Install this node to use it")
+
+- **What happened:** The `n8n-nodes-base.openAi` node from the workflow
+  template showed a broken icon and refused to run — "This node is not
+  currently installed... newer version of n8n, a custom node, or has an
+  invalid structure."
+- **What I tried first:** Looked for a way to install the missing node
+  package inside the n8n UI, but that would mean pulling in the LangChain
+  community node package just for one HTTP call.
+- **What I did instead:** Replaced it with a plain **HTTP Request** node
+  calling the API directly — a core node guaranteed to exist in any n8n
+  install. I also had no OpenAI API key, so I switched providers to Groq,
+  which exposes an OpenAI-compatible endpoint (`/openai/v1/chat/completions`)
+  and has a genuinely free tier. The request/response shape is identical,
+  so the rest of the workflow (parsing `choices[0].message.content`) didn't
+  need to change.
+- **Second snag inside this same fix:** the request kept failing with
+  "Invalid API Key" even though the key was correct — the credential's
+  header value was missing the required `Bearer ` prefix. Groq (like
+  OpenAI) expects the Authorization header as `Bearer <key>`, not the raw
+  key alone.
+- **What I rejected:** I could have kept fighting to install the missing
+  community node, but that adds a dependency and a version constraint for
+  no real benefit over a plain HTTP call — the HTTP Request node is more
+  transparent about exactly what's being sent anyway, which matters more
+  for defending it live than using a prettier abstraction.
+
+### 4. Groq returned "the service is receiving too many requests from you"
+
+- **What happened:** Once the LLM node worked, running the full workflow
+  against all 55 untagged people failed partway through with a 429 rate
+  limit error from Groq.
+- **Why:** n8n was firing all 55 HTTP requests to the LLM node back-to-back
+  with no delay, which blew past Groq's free-tier requests-per-minute cap.
+- **What I did:** Added batching to the node's Options (1 item per batch,
+  2000ms interval), so requests go out one at a time with a 2-second gap
+  instead of all at once. Slower, but reliable.
+- **What I'd do differently at real scale (see Task 5):** for 5,000 people
+  instead of 55, a fixed 2-second serial delay would take almost 3 hours.
+  I'd batch in small parallel groups (e.g. 5 at a time) with backoff/retry
+  on 429s, rather than either "all at once" or "strictly one at a time."
