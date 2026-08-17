@@ -23,6 +23,11 @@ pip install rapidfuzz  # used by merge.py for the fuzzy-duplicate check
 cd merge
 python3 merge.py
 # -> writes people.db and issues_found.md
+# NOTE: this drops and rebuilds people.db from the raw CSVs every run.
+# Re-running it after Task 2/3 have written skill_category or audio
+# submissions will wipe that data — re-run the n8n workflow (Task 2)
+# afterward if you do this. To just inspect current DB state without
+# rebuilding, use: python check_db.py
 
 # Task 3: run the audio app (uses merge/people.db)
 cd ../audio-app
@@ -31,6 +36,18 @@ python3 app.py
 
 # Task 2: see automation/README.md — needs your own n8n + LLM credentials
 ```
+
+> **Important:** `merge.py` deletes and rebuilds `people.db` from scratch
+> every time it runs, by design — the merge should always be reproducible
+> from the raw CSVs. That means running it again **after** you've run the
+> n8n automation (Task 2) or submitted audio (Task 3) will wipe those
+> results, since everything lives in the same database file. Only re-run
+> `merge.py` when you actually want a fresh rebuild; otherwise leave it
+> alone once Tasks 2 and 3 have added their own data.
+>
+> To check the current state of the database without touching it, run:
+> `python merge/check_db.py` — prints how many people are tagged with a
+> skill category and how many audio submissions exist.
 
 ## Task 4 — Data Issues Report
 
@@ -167,3 +184,19 @@ there's no CDN, so playback in `/submissions` gets slow fast.
   instead of 55, a fixed 2-second serial delay would take almost 3 hours.
   I'd batch in small parallel groups (e.g. 5 at a time) with backoff/retry
   on 429s, rather than either "all at once" or "strictly one at a time."
+
+### 5. Groq retired the model mid-project ("resource could not be found")
+
+- **What happened:** the workflow, which had been working, suddenly failed
+  with a 404-style "resource you are requesting could not be found" on the
+  LLM node.
+- **Why:** the model name in my request body (`llama-3.1-8b-instant`) had
+  been deprecated/retired on Groq's side between when I first configured
+  the node and when I ran it again later.
+- **What I did:** checked Groq's current model list and swapped in the
+  currently-supported model name in the request body.
+- **Why this is worth flagging, not just fixing quietly:** this is exactly
+  the kind of failure that breaks real production automations — a
+  third-party provider changes something out from under you with no
+  warning. If this were scheduled and unmonitored (see Task 5), it would
+  have silently stopped tagging people until someone noticed the gap.
